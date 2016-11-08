@@ -1,0 +1,78 @@
+clear;
+close all;
+
+% Oversampling factor
+os_factor = 4;
+
+% SNR
+SNR = 10;
+noAntenna = 3;
+
+% Interpolator type
+interpolator_type = 'linear';
+
+% transmitter
+load task4
+data_length = prod(image_size) * 8 / 2; % Number of QPSK data symbols
+noframes = size(signal,1); 
+symbolsperframe = data_length/noframes;
+
+% % Channel
+% signal = awgn(signal, SNR);
+
+% Loop through all frames
+for k=1:noframes
+   
+   Frame = apply_phase_noise(signal(k,:));
+    chanFrame = apply_rayleigh_fading(Frame);
+    noiseFrame = awgn(chanFrame, SNR);
+    
+    
+    
+   
+    
+    % Add White Noise
+%     SNRlin = 10^(SNR/10);
+%     noiseFrame = chanFrame + 1/sqrt(2*SNRlin)*(randn(size(chanFrame)) + 1i*randn(size(chanFrame)));
+    
+    [start_idx, cc_rxsymbols] = diversityreceiver(noiseFrame, os_factor, noAntenna, symbolsperframe, 'mrc');
+    
+    filtered_rx_signal = matched_filter(cc_rxsymbols, os_factor, 6); % 6 is a good value for the one-sided RRC length (i.e. the filter has 13 taps in total)
+    
+    [~, theta, ~] = frame_sync(cc_rxsymbols, os_factor);
+    
+    [payload_data, theta_hat] = timing_phase_correction(filtered_rx_signal, data_length, data_idx, os_factor, theta, 'linear');
+    
+    rxsymbols(k,:) = cc_rxsymbols(start_idx:os_factor:start_idx+(symbolsperframe*os_factor)-1);
+end
+
+
+
+
+
+
+
+
+% Receiver
+filtered_rx_signal = matched_filter(signalFrame, os_factor, 6); % 6 is a good value for the one-sided RRC length (i.e. the filter has 13 taps in total)
+
+% Frame synchronization
+[data_idx, theta, ~] = frame_sync(filtered_rx_signal, os_factor); % Index of the first data symbol
+data_idxInit = data_idx;
+
+% correct timing and phase
+[payload_data, theta_hat] = timing_phase_correction(filtered_rx_signal, data_length, data_idx, os_factor, theta, 'linear');
+
+% % Plot phase
+% figure(1),
+% plot(theta_hat)
+% hold on
+% plot(theta_n(data_idxInit:os_factor:end), '-r')
+% a = axis;
+% a(3:4) = [0,2*pi];
+% axis(a)
+% set(gca,'ytick',0:pi/4:2*pi)
+% grid on;
+
+% Draw image
+image_decoder(demapper(payload_data), image_size);
